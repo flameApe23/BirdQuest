@@ -1,0 +1,334 @@
+{% extends "base.html" %} {% block title %}Groups - BirdQuest{% endblock %} {%
+block extra_css %}
+<link
+    rel="stylesheet"
+    href="{{ url_for('static', filename='css/groups.css') }}"
+/>
+{% endblock %} {% block content %}
+<div class="groups-page">
+    <div class="page-header">
+        <h1>👥 My Groups</h1>
+        <p>Join friends and classmates to complete habits together!</p>
+    </div>
+
+    <div class="groups-actions">
+        <button class="btn btn-primary" onclick="openCreateGroupModal()">
+            <span>➕</span> Create Group
+        </button>
+        <button class="btn btn-secondary" onclick="openJoinGroupModal()">
+            <span>🔗</span> Join Group
+        </button>
+    </div>
+
+    <div class="groups-grid">
+        {% if groups %} {% for group in groups %}
+        <div
+            class="group-card"
+            onclick="window.location.href='{{ url_for('group_detail', group_id=group.id) }}'"
+        >
+            <div class="group-icon">
+                <span>👥</span>
+            </div>
+            <div class="group-info">
+                <h3 class="group-name">{{ group.name }}</h3>
+                {% if group.description %}
+                <p class="group-description">
+                    {{ group.description[:100] }}{% if group.description|length
+                    > 100 %}...{% endif %}
+                </p>
+                {% endif %}
+                <div class="group-meta">
+                    <span class="member-count">
+                        <span class="meta-icon">👤</span>
+                        {{ group.get_member_count() }} member{% if
+                        group.get_member_count() != 1 %}s{% endif %}
+                    </span>
+                    <span class="challenge-count">
+                        <span class="meta-icon">🏆</span>
+                        {{ group.challenges|length }} challenge{% if
+                        group.challenges|length != 1 %}s{% endif %}
+                    </span>
+                </div>
+            </div>
+            <div class="group-arrow">→</div>
+        </div>
+        {% endfor %} {% else %}
+        <div class="empty-state">
+            <div class="empty-icon">🐦</div>
+            <h3>No Groups Yet</h3>
+            <p>
+                Create a new group or join an existing one with an invite code!
+            </p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Create Group Modal -->
+<div class="modal" id="create-group-modal">
+    <div class="modal-backdrop" onclick="closeCreateGroupModal()"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>➕ Create New Group</h2>
+            <button class="modal-close" onclick="closeCreateGroupModal()">
+                ×
+            </button>
+        </div>
+        <form id="create-group-form" onsubmit="createGroup(event)">
+            <div class="form-group">
+                <label for="group-name">Group Name</label>
+                <input
+                    type="text"
+                    id="group-name"
+                    name="name"
+                    placeholder="e.g., Study Squad"
+                    required
+                    maxlength="100"
+                />
+            </div>
+            <div class="form-group">
+                <label for="group-description">Description (Optional)</label>
+                <textarea
+                    id="group-description"
+                    name="description"
+                    placeholder="What's this group about?"
+                    maxlength="500"
+                    rows="3"
+                ></textarea>
+            </div>
+            <div class="modal-actions">
+                <button
+                    type="button"
+                    class="btn btn-secondary"
+                    onclick="closeCreateGroupModal()"
+                >
+                    Cancel
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    Create Group
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Join Group Modal -->
+<div class="modal" id="join-group-modal">
+    <div class="modal-backdrop" onclick="closeJoinGroupModal()"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>🔗 Join Group</h2>
+            <button class="modal-close" onclick="closeJoinGroupModal()">
+                ×
+            </button>
+        </div>
+        <form id="join-group-form" onsubmit="joinGroup(event)">
+            <div class="form-group">
+                <label for="invite-code">Invite Code</label>
+                <input
+                    type="text"
+                    id="invite-code"
+                    name="invite_code"
+                    placeholder="Enter 8-character code"
+                    required
+                    maxlength="8"
+                    style="
+                        text-transform: uppercase;
+                        letter-spacing: 2px;
+                        font-size: 1.2rem;
+                        text-align: center;
+                    "
+                />
+                <p class="form-hint">Ask a group member for the invite code</p>
+            </div>
+            <div class="modal-actions">
+                <button
+                    type="button"
+                    class="btn btn-secondary"
+                    onclick="closeJoinGroupModal()"
+                >
+                    Cancel
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    Join Group
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Invite Code Success Modal -->
+<div class="modal" id="invite-code-modal">
+    <div class="modal-backdrop" onclick="closeInviteCodeModal()"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>🎉 Group Created!</h2>
+            <button class="modal-close" onclick="closeInviteCodeModal()">
+                ×
+            </button>
+        </div>
+        <div class="invite-code-display">
+            <p>Share this invite code with friends:</p>
+            <div class="invite-code" id="generated-invite-code">XXXXXXXX</div>
+            <button class="btn btn-secondary" onclick="copyInviteCode()">
+                <span>📋</span> Copy Code
+            </button>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-primary" onclick="goToGroup()">
+                View Group
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toast-container"></div>
+
+{% endblock %} {% block extra_js %}
+<script>
+    let createdGroupId = null;
+
+    // Modal functions
+    function openCreateGroupModal() {
+        document.getElementById("create-group-modal").classList.add("active");
+    }
+
+    function closeCreateGroupModal() {
+        document
+            .getElementById("create-group-modal")
+            .classList.remove("active");
+        document.getElementById("create-group-form").reset();
+    }
+
+    function openJoinGroupModal() {
+        document.getElementById("join-group-modal").classList.add("active");
+    }
+
+    function closeJoinGroupModal() {
+        document.getElementById("join-group-modal").classList.remove("active");
+        document.getElementById("join-group-form").reset();
+    }
+
+    function closeInviteCodeModal() {
+        document.getElementById("invite-code-modal").classList.remove("active");
+    }
+
+    function goToGroup() {
+        if (createdGroupId) {
+            window.location.href = `/groups/${createdGroupId}`;
+        }
+    }
+
+    // Create group
+    async function createGroup(event) {
+        event.preventDefault();
+
+        const name = document.getElementById("group-name").value.trim();
+        const description = document
+            .getElementById("group-description")
+            .value.trim();
+
+        try {
+            const response = await fetch("/api/groups/create", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ name, description }),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                closeCreateGroupModal();
+                createdGroupId = data.group_id;
+                document.getElementById("generated-invite-code").textContent =
+                    data.invite_code;
+                document
+                    .getElementById("invite-code-modal")
+                    .classList.add("active");
+            } else {
+                showToast(data.message, "error");
+            }
+        } catch (error) {
+            showToast("Failed to create group", "error");
+        }
+    }
+
+    // Join group
+    async function joinGroup(event) {
+        event.preventDefault();
+
+        const inviteCode = document
+            .getElementById("invite-code")
+            .value.trim()
+            .toUpperCase();
+
+        try {
+            const response = await fetch("/api/groups/join", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ invite_code: inviteCode }),
+            });
+
+            const data = await response.json();
+
+            if (data.success) {
+                showToast(data.message, "success");
+                closeJoinGroupModal();
+                setTimeout(() => {
+                    window.location.href = `/groups/${data.group_id}`;
+                }, 1000);
+            } else {
+                showToast(data.message, "error");
+            }
+        } catch (error) {
+            showToast("Failed to join group", "error");
+        }
+    }
+
+    // Copy invite code
+    function copyInviteCode() {
+        const code = document.getElementById(
+            "generated-invite-code",
+        ).textContent;
+        navigator.clipboard
+            .writeText(code)
+            .then(() => {
+                showToast("Invite code copied!", "success");
+            })
+            .catch(() => {
+                showToast("Failed to copy", "error");
+            });
+    }
+
+    // Toast notification
+    function showToast(message, type = "info") {
+        const container = document.getElementById("toast-container");
+        const toast = document.createElement("div");
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `
+        <span class="toast-icon">${type === "success" ? "✅" : type === "error" ? "❌" : "ℹ️"}</span>
+        <span class="toast-message">${message}</span>
+    `;
+        container.appendChild(toast);
+
+        setTimeout(() => {
+            toast.classList.add("fade-out");
+            setTimeout(() => toast.remove(), 300);
+        }, 3000);
+    }
+
+    // Close modals on escape
+    document.addEventListener("keydown", function (e) {
+        if (e.key === "Escape") {
+            closeCreateGroupModal();
+            closeJoinGroupModal();
+            closeInviteCodeModal();
+        }
+    });
+</script>
+{% endblock %}

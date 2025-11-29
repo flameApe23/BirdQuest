@@ -275,6 +275,136 @@ class HiddenHabit(db.Model):
     hidden_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+# Group Models
+class Group(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.String(500), nullable=True)
+    invite_code = db.Column(db.String(8), unique=True, nullable=False)
+    creator_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    creator = db.relationship(
+        "User", backref="created_groups", foreign_keys=[creator_id]
+    )
+    members = db.relationship(
+        "GroupMember", backref="group", lazy=True, cascade="all, delete-orphan"
+    )
+    challenges = db.relationship(
+        "GroupChallenge", backref="group", lazy=True, cascade="all, delete-orphan"
+    )
+
+    def get_member_count(self):
+        return len(self.members)
+
+    def is_member(self, user_id):
+        return any(m.user_id == user_id for m in self.members)
+
+    def is_admin(self, user_id):
+        member = next((m for m in self.members if m.user_id == user_id), None)
+        return member and member.is_admin
+
+
+class GroupMember(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey("group.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    is_admin = db.Column(db.Boolean, default=False)
+    joined_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationship to user
+    user = db.relationship("User", backref="group_memberships")
+
+    __table_args__ = (
+        db.UniqueConstraint("group_id", "user_id", name="unique_group_member"),
+    )
+
+
+class GroupChallenge(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    group_id = db.Column(db.Integer, db.ForeignKey("group.id"), nullable=False)
+    name = db.Column(db.String(100), nullable=False)
+    description = db.Column(db.String(500), nullable=True)
+    habit_name = db.Column(db.String(100), nullable=False)  # The habit to track
+    target_count = db.Column(db.Integer, default=7)  # Number of times to complete
+    xp_reward = db.Column(db.Integer, default=50)  # Bonus XP for completing challenge
+    start_date = db.Column(db.Date, nullable=False)
+    end_date = db.Column(db.Date, nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    creator = db.relationship("User", backref="created_challenges")
+    participants = db.relationship(
+        "GroupChallengeParticipant",
+        backref="challenge",
+        lazy=True,
+        cascade="all, delete-orphan",
+    )
+
+    def is_active(self):
+        today = datetime.utcnow().date()
+        return self.start_date <= today <= self.end_date
+
+    def is_expired(self):
+        return datetime.utcnow().date() > self.end_date
+
+    def days_remaining(self):
+        today = datetime.utcnow().date()
+        if today > self.end_date:
+            return 0
+        return (self.end_date - today).days
+
+
+class GroupChallengeParticipant(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    challenge_id = db.Column(
+        db.Integer, db.ForeignKey("group_challenge.id"), nullable=False
+    )
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    progress = db.Column(db.Integer, default=0)  # Times completed
+    completed = db.Column(db.Boolean, default=False)
+    completed_at = db.Column(db.DateTime, nullable=True)
+    joined_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationship to user
+    user = db.relationship("User", backref="challenge_participations")
+
+    __table_args__ = (
+        db.UniqueConstraint(
+            "challenge_id", "user_id", name="unique_challenge_participant"
+        ),
+    )
+
+
+class GroupChallengeLog(db.Model):
+    """Tracks daily completions for group challenges"""
+
+    id = db.Column(db.Integer, primary_key=True)
+    participant_id = db.Column(
+        db.Integer, db.ForeignKey("group_challenge_participant.id"), nullable=False
+    )
+    date = db.Column(db.Date, default=datetime.utcnow().date)
+    completed_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    participant = db.relationship("GroupChallengeParticipant", backref="logs")
+
+    __table_args__ = (
+        db.UniqueConstraint("participant_id", "date", name="unique_daily_log"),
+    )
+
+
+def generate_invite_code():
+    """Generate a unique 8-character invite code"""
+    import string
+
+    while True:
+        code = "".join(random.choices(string.ascii_uppercase + string.digits, k=8))
+        if not Group.query.filter_by(invite_code=code).first():
+            return code
+
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -774,6 +904,545 @@ def get_stats():
             "total_xp": current_user.xp + (current_user.level - 1) * XP_PER_LEVEL,
             "seeds": current_user.seeds,
             "daily_completions": daily_counts,
+        }
+    )
+
+
+# ==================== GROUP ROUTES ====================
+
+
+@app.route("/groups")
+@login_required
+def groups():
+    """Display all groups the user is a member of"""
+    user_groups = (
+        Group.query.join(GroupMember)
+        .filter(GroupMember.user_id == current_user.id)
+        .all()
+    )
+
+    return render_template("groups.html", groups=user_groups)
+
+
+@app.route("/groups/<int:group_id>")
+@login_required
+def group_detail(group_id):
+    """Display group details, leaderboard, and challenges"""
+    group = Group.query.get_or_404(group_id)
+
+    # Check if user is a member
+    if not group.is_member(current_user.id):
+        flash("You are not a member of this group.", "error")
+        return redirect(url_for("groups"))
+
+    # Get leaderboard data
+    members_data = []
+    for member in group.members:
+        user = member.user
+        members_data.append(
+            {
+                "id": user.id,
+                "username": user.username,
+                "level": user.level,
+                "xp": user.xp,
+                "streak": user.streak,
+                "seeds": user.seeds,
+                "is_admin": member.is_admin,
+                "bird": get_bird_by_id(user.current_bird_id),
+                "is_shiny": user.current_bird_shiny,
+            }
+        )
+
+    # Sort by level, then XP
+    members_data.sort(key=lambda x: (x["level"], x["xp"]), reverse=True)
+
+    # Get active and past challenges
+    today = datetime.utcnow().date()
+    active_challenges = []
+    past_challenges = []
+
+    for challenge in group.challenges:
+        challenge_data = {
+            "id": challenge.id,
+            "name": challenge.name,
+            "description": challenge.description,
+            "habit_name": challenge.habit_name,
+            "target_count": challenge.target_count,
+            "xp_reward": challenge.xp_reward,
+            "start_date": challenge.start_date.strftime("%b %d"),
+            "end_date": challenge.end_date.strftime("%b %d"),
+            "days_remaining": challenge.days_remaining(),
+            "is_active": challenge.is_active(),
+            "participant_count": len(challenge.participants),
+            "creator": challenge.creator.username,
+        }
+
+        # Check if current user is participating
+        participation = next(
+            (p for p in challenge.participants if p.user_id == current_user.id), None
+        )
+        challenge_data["is_participating"] = participation is not None
+        challenge_data["user_progress"] = participation.progress if participation else 0
+        challenge_data["user_completed"] = (
+            participation.completed if participation else False
+        )
+
+        # Get top participants
+        sorted_participants = sorted(
+            challenge.participants, key=lambda p: p.progress, reverse=True
+        )[:5]
+        challenge_data["top_participants"] = [
+            {
+                "username": p.user.username,
+                "progress": p.progress,
+                "completed": p.completed,
+            }
+            for p in sorted_participants
+        ]
+
+        if challenge.is_active():
+            active_challenges.append(challenge_data)
+        else:
+            past_challenges.append(challenge_data)
+
+    is_admin = group.is_admin(current_user.id)
+
+    return render_template(
+        "group_detail.html",
+        group=group,
+        members=members_data,
+        active_challenges=active_challenges,
+        past_challenges=past_challenges,
+        is_admin=is_admin,
+    )
+
+
+@app.route("/api/groups/create", methods=["POST"])
+@login_required
+def create_group():
+    """Create a new group"""
+    data = request.get_json()
+    name = data.get("name", "").strip()
+    description = data.get("description", "").strip()
+
+    if not name:
+        return jsonify({"success": False, "message": "Group name is required"})
+
+    if len(name) > 100:
+        return jsonify({"success": False, "message": "Group name is too long"})
+
+    # Generate unique invite code
+    invite_code = generate_invite_code()
+
+    # Create the group
+    group = Group(
+        name=name,
+        description=description,
+        invite_code=invite_code,
+        creator_id=current_user.id,
+    )
+    db.session.add(group)
+    db.session.flush()
+
+    # Add creator as admin member
+    member = GroupMember(group_id=group.id, user_id=current_user.id, is_admin=True)
+    db.session.add(member)
+    db.session.commit()
+
+    return jsonify(
+        {
+            "success": True,
+            "message": "Group created successfully!",
+            "group_id": group.id,
+            "invite_code": invite_code,
+        }
+    )
+
+
+@app.route("/api/groups/join", methods=["POST"])
+@login_required
+def join_group():
+    """Join a group using invite code"""
+    data = request.get_json()
+    invite_code = data.get("invite_code", "").strip().upper()
+
+    if not invite_code:
+        return jsonify({"success": False, "message": "Invite code is required"})
+
+    group = Group.query.filter_by(invite_code=invite_code).first()
+
+    if not group:
+        return jsonify({"success": False, "message": "Invalid invite code"})
+
+    # Check if already a member
+    if group.is_member(current_user.id):
+        return jsonify(
+            {"success": False, "message": "You are already a member of this group"}
+        )
+
+    # Add as member
+    member = GroupMember(group_id=group.id, user_id=current_user.id, is_admin=False)
+    db.session.add(member)
+    db.session.commit()
+
+    return jsonify(
+        {
+            "success": True,
+            "message": f"Successfully joined {group.name}!",
+            "group_id": group.id,
+        }
+    )
+
+
+@app.route("/api/groups/<int:group_id>/leave", methods=["POST"])
+@login_required
+def leave_group(group_id):
+    """Leave a group"""
+    group = Group.query.get_or_404(group_id)
+
+    member = GroupMember.query.filter_by(
+        group_id=group_id, user_id=current_user.id
+    ).first()
+
+    if not member:
+        return jsonify({"success": False, "message": "You are not a member"})
+
+    # Check if user is the only admin
+    if member.is_admin:
+        admin_count = GroupMember.query.filter_by(
+            group_id=group_id, is_admin=True
+        ).count()
+        if admin_count == 1 and len(group.members) > 1:
+            return jsonify(
+                {
+                    "success": False,
+                    "message": "Please promote another member to admin before leaving",
+                }
+            )
+
+    # Remove from all challenges in this group
+    for challenge in group.challenges:
+        participation = GroupChallengeParticipant.query.filter_by(
+            challenge_id=challenge.id, user_id=current_user.id
+        ).first()
+        if participation:
+            db.session.delete(participation)
+
+    db.session.delete(member)
+
+    # If no members left, delete the group
+    if len(group.members) <= 1:
+        db.session.delete(group)
+
+    db.session.commit()
+
+    return jsonify({"success": True, "message": "Left the group"})
+
+
+@app.route("/api/groups/<int:group_id>/promote", methods=["POST"])
+@login_required
+def promote_member(group_id):
+    """Promote a member to admin"""
+    group = Group.query.get_or_404(group_id)
+
+    if not group.is_admin(current_user.id):
+        return jsonify({"success": False, "message": "Only admins can promote members"})
+
+    data = request.get_json()
+    user_id = data.get("user_id")
+
+    member = GroupMember.query.filter_by(group_id=group_id, user_id=user_id).first()
+
+    if not member:
+        return jsonify({"success": False, "message": "User is not a member"})
+
+    member.is_admin = True
+    db.session.commit()
+
+    return jsonify({"success": True, "message": "Member promoted to admin"})
+
+
+@app.route("/api/groups/<int:group_id>/kick", methods=["POST"])
+@login_required
+def kick_member(group_id):
+    """Remove a member from the group"""
+    group = Group.query.get_or_404(group_id)
+
+    if not group.is_admin(current_user.id):
+        return jsonify({"success": False, "message": "Only admins can remove members"})
+
+    data = request.get_json()
+    user_id = data.get("user_id")
+
+    if user_id == current_user.id:
+        return jsonify({"success": False, "message": "You cannot kick yourself"})
+
+    member = GroupMember.query.filter_by(group_id=group_id, user_id=user_id).first()
+
+    if not member:
+        return jsonify({"success": False, "message": "User is not a member"})
+
+    # Remove from challenges
+    for challenge in group.challenges:
+        participation = GroupChallengeParticipant.query.filter_by(
+            challenge_id=challenge.id, user_id=user_id
+        ).first()
+        if participation:
+            db.session.delete(participation)
+
+    db.session.delete(member)
+    db.session.commit()
+
+    return jsonify({"success": True, "message": "Member removed"})
+
+
+@app.route("/api/groups/<int:group_id>/leaderboard")
+@login_required
+def group_leaderboard(group_id):
+    """Get group leaderboard data"""
+    group = Group.query.get_or_404(group_id)
+
+    if not group.is_member(current_user.id):
+        return jsonify({"success": False, "message": "Not a member"})
+
+    members_data = []
+    for member in group.members:
+        user = member.user
+        members_data.append(
+            {
+                "id": user.id,
+                "username": user.username,
+                "level": user.level,
+                "xp": user.xp,
+                "streak": user.streak,
+                "seeds": user.seeds,
+            }
+        )
+
+    # Sort by level, then XP
+    members_data.sort(key=lambda x: (x["level"], x["xp"]), reverse=True)
+
+    return jsonify({"success": True, "leaderboard": members_data})
+
+
+# ==================== CHALLENGE ROUTES ====================
+
+
+@app.route("/api/challenges/create", methods=["POST"])
+@login_required
+def create_challenge():
+    """Create a new group challenge"""
+    data = request.get_json()
+    group_id = data.get("group_id")
+    name = data.get("name", "").strip()
+    description = data.get("description", "").strip()
+    habit_name = data.get("habit_name", "").strip()
+    target_count = data.get("target_count", 7)
+    duration_days = data.get("duration_days", 7)
+    xp_reward = data.get("xp_reward", 50)
+
+    if not all([group_id, name, habit_name]):
+        return jsonify({"success": False, "message": "Missing required fields"})
+
+    group = Group.query.get(group_id)
+    if not group:
+        return jsonify({"success": False, "message": "Group not found"})
+
+    if not group.is_member(current_user.id):
+        return jsonify({"success": False, "message": "You are not a member"})
+
+    # Calculate dates
+    start_date = datetime.utcnow().date()
+    end_date = start_date + timedelta(days=int(duration_days))
+
+    challenge = GroupChallenge(
+        group_id=group_id,
+        name=name,
+        description=description,
+        habit_name=habit_name,
+        target_count=int(target_count),
+        xp_reward=int(xp_reward),
+        start_date=start_date,
+        end_date=end_date,
+        created_by=current_user.id,
+    )
+    db.session.add(challenge)
+    db.session.flush()
+
+    # Auto-join creator
+    participant = GroupChallengeParticipant(
+        challenge_id=challenge.id, user_id=current_user.id
+    )
+    db.session.add(participant)
+    db.session.commit()
+
+    return jsonify(
+        {
+            "success": True,
+            "message": "Challenge created!",
+            "challenge_id": challenge.id,
+        }
+    )
+
+
+@app.route("/api/challenges/<int:challenge_id>/join", methods=["POST"])
+@login_required
+def join_challenge(challenge_id):
+    """Join a group challenge"""
+    challenge = GroupChallenge.query.get_or_404(challenge_id)
+
+    if not challenge.group.is_member(current_user.id):
+        return jsonify({"success": False, "message": "You are not a group member"})
+
+    # Check if already participating
+    existing = GroupChallengeParticipant.query.filter_by(
+        challenge_id=challenge_id, user_id=current_user.id
+    ).first()
+
+    if existing:
+        return jsonify({"success": False, "message": "Already participating"})
+
+    if challenge.is_expired():
+        return jsonify({"success": False, "message": "Challenge has ended"})
+
+    participant = GroupChallengeParticipant(
+        challenge_id=challenge_id, user_id=current_user.id
+    )
+    db.session.add(participant)
+    db.session.commit()
+
+    return jsonify({"success": True, "message": "Joined the challenge!"})
+
+
+@app.route("/api/challenges/<int:challenge_id>/log", methods=["POST"])
+@login_required
+def log_challenge_progress(challenge_id):
+    """Log daily progress for a challenge"""
+    challenge = GroupChallenge.query.get_or_404(challenge_id)
+
+    participant = GroupChallengeParticipant.query.filter_by(
+        challenge_id=challenge_id, user_id=current_user.id
+    ).first()
+
+    if not participant:
+        return jsonify({"success": False, "message": "Not participating"})
+
+    if challenge.is_expired():
+        return jsonify({"success": False, "message": "Challenge has ended"})
+
+    if participant.completed:
+        return jsonify(
+            {"success": False, "message": "Already completed this challenge"}
+        )
+
+    today = datetime.utcnow().date()
+
+    # Check if already logged today
+    existing_log = GroupChallengeLog.query.filter_by(
+        participant_id=participant.id, date=today
+    ).first()
+
+    if existing_log:
+        return jsonify({"success": False, "message": "Already logged today"})
+
+    # Create log entry
+    log = GroupChallengeLog(participant_id=participant.id, date=today)
+    db.session.add(log)
+
+    # Update progress
+    participant.progress += 1
+
+    # Check if completed
+    bonus_xp = 0
+    if participant.progress >= challenge.target_count:
+        participant.completed = True
+        participant.completed_at = datetime.utcnow()
+        bonus_xp = challenge.xp_reward
+        current_user.xp += bonus_xp
+
+        # Check for level up
+        xp_needed = calculate_xp_for_level(current_user.level)
+        if current_user.xp >= xp_needed:
+            current_user.xp -= xp_needed
+            current_user.level += 1
+            multiplier = get_user_multiplier(current_user)
+            seeds_earned = int(SEEDS_PER_LEVEL * multiplier)
+            current_user.seeds += seeds_earned
+
+    db.session.commit()
+
+    return jsonify(
+        {
+            "success": True,
+            "progress": participant.progress,
+            "target": challenge.target_count,
+            "completed": participant.completed,
+            "bonus_xp": bonus_xp,
+            "message": "Progress logged!"
+            + (" 🎉 Challenge completed!" if participant.completed else ""),
+        }
+    )
+
+
+@app.route("/api/challenges/<int:challenge_id>/details")
+@login_required
+def challenge_details(challenge_id):
+    """Get detailed challenge information"""
+    challenge = GroupChallenge.query.get_or_404(challenge_id)
+
+    if not challenge.group.is_member(current_user.id):
+        return jsonify({"success": False, "message": "Not a member"})
+
+    participants_data = []
+    for p in challenge.participants:
+        participants_data.append(
+            {
+                "username": p.user.username,
+                "progress": p.progress,
+                "completed": p.completed,
+                "user_id": p.user_id,
+            }
+        )
+
+    participants_data.sort(key=lambda x: x["progress"], reverse=True)
+
+    # Check current user participation
+    user_participation = next(
+        (p for p in challenge.participants if p.user_id == current_user.id), None
+    )
+
+    # Check if user already logged today
+    can_log_today = False
+    if user_participation and not user_participation.completed:
+        today = datetime.utcnow().date()
+        existing_log = GroupChallengeLog.query.filter_by(
+            participant_id=user_participation.id, date=today
+        ).first()
+        can_log_today = existing_log is None
+
+    return jsonify(
+        {
+            "success": True,
+            "challenge": {
+                "id": challenge.id,
+                "name": challenge.name,
+                "description": challenge.description,
+                "habit_name": challenge.habit_name,
+                "target_count": challenge.target_count,
+                "xp_reward": challenge.xp_reward,
+                "start_date": challenge.start_date.strftime("%Y-%m-%d"),
+                "end_date": challenge.end_date.strftime("%Y-%m-%d"),
+                "days_remaining": challenge.days_remaining(),
+                "is_active": challenge.is_active(),
+                "creator": challenge.creator.username,
+            },
+            "participants": participants_data,
+            "user_participating": user_participation is not None,
+            "user_progress": user_participation.progress if user_participation else 0,
+            "user_completed": user_participation.completed
+            if user_participation
+            else False,
+            "can_log_today": can_log_today,
         }
     )
 
