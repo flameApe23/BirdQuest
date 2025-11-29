@@ -152,11 +152,9 @@
                             <span class="habit-category">{{ habit.category|title }}</span>
                         </div>
                     </div>
-                    {% if habit.is_custom|default(false) %}
                     <button class="habit-delete" onclick="deleteHabit('{{ habit.id }}')" title="Delete habit">
                         🗑️
                     </button>
-                    {% endif %}
                 </div>
                 {% endfor %}
             </div>

@@ -241,6 +241,13 @@ class CustomHabit(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class HiddenHabit(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    habit_id = db.Column(db.Integer, nullable=False)
+    hidden_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -281,7 +288,14 @@ def check_and_update_streak(user):
 
 
 def get_all_habits(user):
-    habits = list(STUDENT_HABITS)
+    # Get hidden habit IDs for this user
+    hidden_ids = {
+        h.habit_id for h in HiddenHabit.query.filter_by(user_id=user.id).all()
+    }
+
+    # Filter out hidden built-in habits
+    habits = [h for h in STUDENT_HABITS if h["id"] not in hidden_ids]
+
     custom = CustomHabit.query.filter_by(user_id=user.id).all()
     for h in custom:
         habits.append(
@@ -547,18 +561,44 @@ def delete_habit():
     data = request.get_json()
     habit_id = data.get("habit_id")
 
-    if not habit_id or not str(habit_id).startswith("custom_"):
-        return jsonify({"success": False, "message": "Can only delete custom habits"})
+    if not habit_id:
+        return jsonify({"success": False, "message": "No habit ID provided"})
 
-    actual_id = int(str(habit_id).replace("custom_", ""))
-    habit = CustomHabit.query.filter_by(id=actual_id, user_id=current_user.id).first()
+    # Check if it's a custom habit
+    if str(habit_id).startswith("custom_"):
+        actual_id = int(str(habit_id).replace("custom_", ""))
+        habit = CustomHabit.query.filter_by(
+            id=actual_id, user_id=current_user.id
+        ).first()
 
-    if habit:
-        db.session.delete(habit)
+        if habit:
+            db.session.delete(habit)
+            db.session.commit()
+            return jsonify({"success": True})
+
+        return jsonify({"success": False, "message": "Habit not found"})
+
+    # It's a built-in habit - hide it instead of deleting
+    try:
+        builtin_id = int(habit_id)
+        # Check if it's a valid built-in habit
+        if not any(h["id"] == builtin_id for h in STUDENT_HABITS):
+            return jsonify({"success": False, "message": "Invalid habit ID"})
+
+        # Check if already hidden
+        existing = HiddenHabit.query.filter_by(
+            user_id=current_user.id, habit_id=builtin_id
+        ).first()
+        if existing:
+            return jsonify({"success": True})  # Already hidden
+
+        # Hide the habit
+        hidden = HiddenHabit(user_id=current_user.id, habit_id=builtin_id)
+        db.session.add(hidden)
         db.session.commit()
         return jsonify({"success": True})
-
-    return jsonify({"success": False, "message": "Habit not found"})
+    except ValueError:
+        return jsonify({"success": False, "message": "Invalid habit ID"})
 
 
 @app.route("/api/buy-bird", methods=["POST"])
