@@ -248,6 +248,9 @@ class User(UserMixin, db.Model):
     current_bird_shiny = db.Column(db.Boolean, default=False)
     streak = db.Column(db.Integer, default=0)
     last_login_date = db.Column(db.Date, default=datetime.utcnow().date)
+    last_streak_date = db.Column(
+        db.Date, nullable=True
+    )  # Date when streak was last incremented
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     owned_birds = db.relationship("OwnedBird", backref="owner", lazy=True)
@@ -318,17 +321,45 @@ def get_user_multiplier(user):
 
 
 def check_and_update_streak(user):
+    """Check if user missed a day and reset streak if needed. Called on login."""
     today = datetime.utcnow().date()
-    if user.last_login_date:
-        diff = (today - user.last_login_date).days
-        if diff == 1:
-            user.streak += 1
-        elif diff > 1:
-            user.streak = 1
-    else:
-        user.streak = 1
+
+    # If user has a last_streak_date, check if they missed a day
+    if user.last_streak_date:
+        diff = (today - user.last_streak_date).days
+        # If more than 1 day has passed since last task completion, reset streak
+        if diff > 1:
+            user.streak = 0
+
     user.last_login_date = today
     db.session.commit()
+
+
+def update_streak_on_task(user):
+    """Update streak when user completes their first task of the day."""
+    today = datetime.utcnow().date()
+
+    # Check if streak already updated today
+    if user.last_streak_date == today:
+        return False  # Already got streak credit today
+
+    # Check if this is a consecutive day
+    if user.last_streak_date:
+        diff = (today - user.last_streak_date).days
+        if diff == 1:
+            # Consecutive day - increment streak
+            user.streak += 1
+        elif diff > 1:
+            # Missed days - reset to 1
+            user.streak = 1
+        # diff == 0 shouldn't happen due to check above
+    else:
+        # First ever task - start streak at 1
+        user.streak = 1
+
+    # Mark today as the streak date
+    user.last_streak_date = today
+    return True  # Streak was updated
 
 
 def get_all_habits(user):
@@ -553,6 +584,9 @@ def complete_habit():
         )
     db.session.add(completion)
 
+    # Update streak (only increments on first task of the day)
+    streak_updated = update_streak_on_task(current_user)
+
     # Add XP
     current_user.xp += xp_earned
 
@@ -578,6 +612,8 @@ def complete_habit():
             "current_xp": current_user.xp,
             "level": current_user.level,
             "seeds": current_user.seeds,
+            "streak": current_user.streak,
+            "streak_updated": streak_updated,
             "leveled_up": leveled_up,
             "seeds_earned": seeds_earned,
             "xp_needed": calculate_xp_for_level(current_user.level),

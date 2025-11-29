@@ -74,6 +74,12 @@ async function completeHabit(habitId, isCustom = false) {
       // Show XP toast
       showToast(`+${data.xp_earned} XP earned!`, "success");
 
+      // Check if streak was updated (first task of the day)
+      if (data.streak_updated) {
+        updateStreakDisplay(data.streak);
+        showToast(`🔥 ${data.streak} day streak!`, "success");
+      }
+
       // Check for level up
       if (data.leveled_up) {
         showLevelUp(data.level, data.seeds_earned);
@@ -122,6 +128,29 @@ function updateStatsDisplay(level, seeds) {
 
   if (seedsCount) {
     seedsCount.textContent = seeds;
+  }
+}
+
+// ===================================
+// Streak Display Update
+// ===================================
+function updateStreakDisplay(streak) {
+  const streakCount = document.getElementById("streak-count");
+  const statsStreak = document.getElementById("stats-streak");
+
+  if (streakCount) {
+    streakCount.textContent = streak;
+    // Add a quick animation
+    streakCount.style.transform = "scale(1.3)";
+    streakCount.style.color = "#f59e0b";
+    setTimeout(() => {
+      streakCount.style.transform = "scale(1)";
+      streakCount.style.color = "";
+    }, 300);
+  }
+
+  if (statsStreak) {
+    statsStreak.textContent = streak;
   }
 }
 

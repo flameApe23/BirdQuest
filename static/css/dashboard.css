@@ -46,6 +46,9 @@
     font-size: 1.5rem;
     font-weight: 700;
     color: #2d3748;
+    transition:
+        transform 0.3s ease,
+        color 0.3s ease;
 }
 
 .stats-bar .stat-label {
