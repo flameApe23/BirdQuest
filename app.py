@@ -201,6 +201,13 @@ AVAILABLE_BIRDS = [
         "image": "Bald_Eagle.png",
         "description": "King of the skies.",
     },
+    {
+        "id": 19,
+        "name": "Trumpeter Swan",
+        "rarity": "legendary",
+        "image": "Trumpeter_Swan.png",
+        "description": "Pure of heart",
+    },
 ]
 
 # Available habits for students
