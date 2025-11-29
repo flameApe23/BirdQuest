@@ -42,6 +42,9 @@ async function completeHabit(habitId, isCustom = false) {
 
   if (!habitItem || checkBtn?.disabled) return;
 
+  // Disable button immediately to prevent double-clicks
+  checkBtn.disabled = true;
+
   try {
     const response = await fetch("/api/complete-habit", {
       method: "POST",
@@ -77,9 +80,13 @@ async function completeHabit(habitId, isCustom = false) {
         updateStatsDisplay(data.level, data.seeds);
       }
     } else {
+      // Re-enable button if the server says it wasn't actually completed
+      checkBtn.disabled = false;
       showToast(data.message, "error");
     }
   } catch (error) {
+    // Re-enable button on error so user can retry
+    checkBtn.disabled = false;
     console.error("Error completing habit:", error);
     showToast("Failed to complete habit. Please try again.", "error");
   }

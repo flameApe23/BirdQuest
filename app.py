@@ -54,11 +54,11 @@ RARITY_MULTIPLIERS = {
 
 # Bird prices based on rarity
 RARITY_PRICES = {
-    "common": 50,
-    "uncommon": 150,
-    "rare": 400,
-    "epic": 1000,
-    "legendary": 2500,
+    "common": 10,
+    "uncommon": 25,
+    "rare": 50,
+    "epic": 100,
+    "legendary": 200,
 }
 
 # Available birds in the shop
@@ -572,6 +572,10 @@ def delete_habit():
         ).first()
 
         if habit:
+            # Delete all completion records for this habit
+            CompletedHabit.query.filter_by(
+                user_id=current_user.id, habit_id=actual_id, is_custom=True
+            ).delete()
             db.session.delete(habit)
             db.session.commit()
             return jsonify({"success": True})
@@ -592,7 +596,10 @@ def delete_habit():
         if existing:
             return jsonify({"success": True})  # Already hidden
 
-        # Hide the habit
+        # Hide the habit and delete completion records
+        CompletedHabit.query.filter_by(
+            user_id=current_user.id, habit_id=builtin_id, is_custom=False
+        ).delete()
         hidden = HiddenHabit(user_id=current_user.id, habit_id=builtin_id)
         db.session.add(hidden)
         db.session.commit()
