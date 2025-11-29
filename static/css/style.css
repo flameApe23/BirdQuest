@@ -1372,3 +1372,39 @@ textarea.invalid {
     border-color: var(--error) !important;
     box-shadow: 0 0 0 3px rgba(252, 129, 129, 0.2) !important;
 }
+.sparkles .sparkle {
+    position: absolute;
+    background: #ffd700;
+    border-radius: 50%;
+    pointer-events: none;
+    opacity: 0;
+    animation: sparkle 2s infinite;
+}
+
+.sparkles .sparkle:nth-child(1) { width: 8px; height: 8px; top: 20%; left: 20%; animation-delay: 0s; }
+.sparkles .sparkle:nth-child(2) { width: 12px; height: 12px; top: 70%; left: 30%; animation-delay: 0.5s; }
+.sparkles .sparkle:nth-child(3) { width: 6px; height: 6px; top: 40%; right: 25%; animation-delay: 1s; }
+.sparkles .sparkle:nth-child(4) { width: 10px; height: 10px; bottom: 30%; left: 15%; animation-delay: 1.3s; }
+.sparkles .sparkle:nth-child(5) { width: 8px; height: 8px; top: 60%; right: 20%; animation-delay: 0.8s; }
+.sparkles .sparkle:nth-child(6) { width: 14px; height: 14px; top: 30%; left: 70%; animation-delay: 1.6s; }
+
+@keyframes sparkle {
+    0%, 100% {
+        opacity: 0;
+        transform: scale(0) rotate(0deg);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1) rotate(180deg);
+    }
+}
+.bird-display.shiny .bird-image img {
+    filter: drop-shadow(0 0 20px #ffd700) 
+            drop-shadow(0 0 40px #ffd700);
+    animation: shinyGlow 3s ease-in-out infinite;
+}
+
+@keyframes shinyGlow {
+    0%, 100% { filter: drop-shadow(0 0 20px #ffd700) drop-shadow(0 0 40px #ffd700); }
+    50% { filter: drop-shadow(0 0 30px #ffd700) drop-shadow(0 0 60px #ffd700); }
+}
