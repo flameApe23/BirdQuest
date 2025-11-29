@@ -670,11 +670,11 @@ def buy_bird():
         user_id=current_user.id, bird_id=bird_id
     ).first()
     if existing and not existing.is_shiny:
-        # Already have normal, check shiny chance
+        # Already have normal, try for shiny - deduct seeds and roll
+        current_user.seeds -= price
         is_shiny = random.random() < SHINY_CHANCE
         if is_shiny:
             existing.is_shiny = True
-            current_user.seeds -= price
             db.session.commit()
             return jsonify(
                 {
@@ -685,7 +685,15 @@ def buy_bird():
                 }
             )
         else:
-            return jsonify({"success": False, "message": "You already own this bird!"})
+            db.session.commit()
+            return jsonify(
+                {
+                    "success": True,
+                    "is_shiny": False,
+                    "message": f"No shiny this time... Try again! (1% chance)",
+                    "seeds": current_user.seeds,
+                }
+            )
     elif existing and existing.is_shiny:
         return jsonify(
             {"success": False, "message": "You already own the shiny version!"}
