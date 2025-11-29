@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BirdQuest - Level Up Your Habits</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body class="home-page">
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="{{ url_for('home') }}" class="nav-logo">
+                <span class="logo-icon">🐦</span>
+                <span class="logo-text">BirdQuest</span>
+            </a>
+            <div class="nav-links">
+                {% if current_user.is_authenticated %}
+                    <a href="{{ url_for('dashboard') }}" class="nav-link">Dashboard</a>
+                    <a href="{{ url_for('shop') }}" class="nav-link">Shop</a>
+                    <a href="{{ url_for('logout') }}" class="nav-link btn-outline">Logout</a>
+                {% else %}
+                    <a href="{{ url_for('login') }}" class="nav-link">Login</a>
+                    <a href="{{ url_for('register') }}" class="nav-link btn-primary">Get Started</a>
+                {% endif %}
+            </div>
+        </div>
+    </nav>
+
+    <main>
+        <!-- Hero Section -->
+        <section class="hero">
+            <div class="hero-content">
+                <h1 class="hero-title">
+                    Build Better Habits,<br>
+                    <span class="highlight">Grow Your Flock</span>
+                </h1>
+                <p class="hero-subtitle">
+                    Transform your daily tasks into an exciting adventure. Complete habits, earn XP,
+                    level up, and collect beautiful birds along the way!
+                </p>
+                <div class="hero-buttons">
+                    {% if current_user.is_authenticated %}
+                        <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-large">Go to Dashboard</a>
+                    {% else %}
+                        <a href="{{ url_for('register') }}" class="btn btn-primary btn-large">Start Your Journey</a>
+                        <a href="#how-it-works" class="btn btn-outline btn-large">Learn More</a>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="hero-image">
+                <div class="bird-showcase">
+                    <div class="bird-card showcase-card legendary">
+                        <div class="sparkles"></div>
+                        <div class="bird-emoji">🦅</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Section -->
+        <section class="features" id="features">
+            <div class="container">
+                <h2 class="section-title">Why Students Love BirdQuest</h2>
+                <div class="features-grid">
+                    <div class="feature-card">
+                        <div class="feature-icon">📚</div>
+                        <h3>Student-Focused Habits</h3>
+                        <p>Pre-built habits designed for students: study sessions, homework, reading, exercise, and more.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🔥</div>
+                        <h3>Streak Tracking</h3>
+                        <p>Build momentum with daily streaks. Don't break the chain and watch your progress soar!</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🏆</div>
+                        <h3>Rewarding Progress</h3>
+                        <p>Every completed task earns XP. Level up to unlock seeds and expand your bird collection.</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">🐦</div>
+                        <h3>Collect Rare Birds</h3>
+                        <p>From common sparrows to legendary phoenixes. Can you catch them all?</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">✨</div>
+                        <h3>Shiny Variants</h3>
+                        <p>1% chance to get a shiny bird with special effects and bonus seed multipliers!</p>
+                    </div>
+                    <div class="feature-card">
+                        <div class="feature-icon">📊</div>
+                        <h3>Track Your Journey</h3>
+                        <p>Visual dashboard showing your progress, streaks, and achievements over time.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- How It Works Section -->
+        <section class="how-it-works" id="how-it-works">
+            <div class="container">
+                <h2 class="section-title">How It Works</h2>
+                <div class="steps">
+                    <div class="step">
+                        <div class="step-number">1</div>
+                        <div class="step-content">
+                            <h3>Add Your Habits</h3>
+                            <p>Choose from student-focused habits or create your own custom tasks. Set daily goals that matter to you.</p>
+                        </div>
+                        <div class="step-icon">📝</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">2</div>
+                        <div class="step-content">
+                            <h3>Complete & Earn XP</h3>
+                            <p>Check off your habits each day to earn experience points. Different tasks reward different amounts of XP.</p>
+                        </div>
+                        <div class="step-icon">⭐</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">3</div>
+                        <div class="step-content">
+                            <h3>Level Up & Get Seeds</h3>
+                            <p>Accumulate XP to level up your account. Each level up rewards you with seeds - the game's currency!</p>
+                        </div>
+                        <div class="step-icon">🌱</div>
+                    </div>
+                    <div class="step">
+                        <div class="step-number">4</div>
+                        <div class="step-content">
+                            <h3>Collect Amazing Birds</h3>
+                            <p>Spend your seeds in the shop to unlock new birds. Equip rare birds for seed multiplier bonuses!</p>
+                        </div>
+                        <div class="step-icon">🦜</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Bird Rarities Section -->
+        <section class="rarities">
+            <div class="container">
+                <h2 class="section-title">Bird Rarities</h2>
+                <p class="section-subtitle">Discover birds of different rarities, each with unique visual effects and seed multipliers!</p>
+                <div class="rarity-cards">
+                    <div class="rarity-card common">
+                        <div class="rarity-header">Common</div>
+                        <div class="rarity-bird">🐦</div>
+                        <div class="rarity-multiplier">1x Seeds</div>
+                        <div class="rarity-effect">Light gray aura</div>
+                    </div>
+                    <div class="rarity-card uncommon">
+                        <div class="rarity-header">Uncommon</div>
+                        <div class="rarity-bird">🐤</div>
+                        <div class="rarity-multiplier">1.2x Seeds</div>
+                        <div class="rarity-effect">Light green aura</div>
+                    </div>
+                    <div class="rarity-card rare">
+                        <div class="rarity-header">Rare</div>
+                        <div class="rarity-bird">🦉</div>
+                        <div class="rarity-multiplier">1.5x Seeds</div>
+                        <div class="rarity-effect">Light blue aura</div>
+                    </div>
+                    <div class="rarity-card epic">
+                        <div class="rarity-header">Epic</div>
+                        <div class="rarity-bird">🦚</div>
+                        <div class="rarity-multiplier">1.7x Seeds</div>
+                        <div class="rarity-effect">Light purple aura</div>
+                    </div>
+                    <div class="rarity-card legendary">
+                        <div class="rarity-header">Legendary</div>
+                        <div class="rarity-bird">🔥</div>
+                        <div class="rarity-multiplier">2x Seeds</div>
+                        <div class="rarity-effect">Golden aura</div>
+                    </div>
+                </div>
+                <div class="shiny-info">
+                    <div class="shiny-badge">✨ SHINY ✨</div>
+                    <p>Every bird has a <strong>1% chance</strong> to be shiny when purchased! Shiny birds have sparkle effects, a golden outline, and even higher multipliers!</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Benefits Section -->
+        <section class="benefits">
+            <div class="container">
+                <h2 class="section-title">Real Benefits for Students</h2>
+                <div class="benefits-grid">
+                    <div class="benefit-item">
+                        <div class="benefit-icon">🎯</div>
+                        <h3>Stay Focused</h3>
+                        <p>Gamification makes building habits fun and keeps you motivated to stay on track with your goals.</p>
+                    </div>
+                    <div class="benefit-item">
+                        <div class="benefit-icon">⏰</div>
+                        <h3>Build Consistency</h3>
+                        <p>Daily logging and streak tracking help you develop lasting habits that stick.</p>
+                    </div>
+                    <div class="benefit-item">
+                        <div class="benefit-icon">🧠</div>
+                        <h3>Reduce Stress</h3>
+                        <p>Breaking big goals into small daily tasks makes everything more manageable.</p>
+                    </div>
+                    <div class="benefit-item">
+                        <div class="benefit-icon">📈</div>
+                        <h3>See Your Growth</h3>
+                        <p>Visual progress tracking shows how far you've come and motivates you to keep going.</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CTA Section -->
+        <section class="cta">
+            <div class="container">
+                <h2>Ready to Start Your Journey?</h2>
+                <p>Join BirdQuest today and transform your habits into an adventure!</p>
+                {% if current_user.is_authenticated %}
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-large">Go to Dashboard</a>
+                {% else %}
+                    <a href="{{ url_for('register') }}" class="btn btn-primary btn-large">Create Free Account</a>
+                {% endif %}
+            </div>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-logo">
+                    <span class="logo-icon">🐦</span>
+                    <span class="logo-text">BirdQuest</span>
+                </div>
+                <p class="footer-text">Build habits. Collect birds. Level up your life.</p>
+            </div>
+        </div>
+    </footer>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="flash-messages">
+                {% for category, message in messages %}
+                    <div class="flash-message {{ category }}">
+                        {{ message }}
+                        <button class="flash-close" onclick="this.parentElement.remove()">×</button>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+
+{% block title %}Register - BirdQuest{% endblock %}
+
+{% block content %}
+<div class="auth-container">
+    <div class="auth-card">
+        <div class="auth-header">
+            <div class="auth-logo">
+                <span class="bird-icon">🐦</span>
+            </div>
+            <h1>Join BirdQuest</h1>
+            <p>Start your journey to productivity!</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('register') }}" class="auth-form">
+            <div class="form-group">
+                <label for="username">
+                    <span class="icon">👤</span>
+                    Username
+                </label>
+                <input
+                    type="text"
+                    id="username"
+                    name="username"
+                    placeholder="Choose a username"
+                    required
+                    minlength="3"
+                    maxlength="20"
+                    autocomplete="username"
+                >
+                <span class="form-hint">3-20 characters</span>
+            </div>
+
+            <div class="form-group">
+                <label for="email">
+                    <span class="icon">📧</span>
+                    Email
+                </label>
+                <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    placeholder="Enter your email"
+                    required
+                    autocomplete="email"
+                >
+            </div>
+
+            <div class="form-group">
+                <label for="password">
+                    <span class="icon">🔒</span>
+                    Password
+                </label>
+                <input
+                    type="password"
+                    id="password"
+                    name="password"
+                    placeholder="Create a password"
+                    required
+                    minlength="6"
+                    autocomplete="new-password"
+                >
+                <span class="form-hint">At least 6 characters</span>
+            </div>
+
+            <div class="form-group">
+                <label for="confirm_password">
+                    <span class="icon">🔒</span>
+                    Confirm Password
+                </label>
+                <input
+                    type="password"
+                    id="confirm_password"
+                    name="confirm_password"
+                    placeholder="Confirm your password"
+                    required
+                    minlength="6"
+                    autocomplete="new-password"
+                >
+            </div>
+
+            <button type="submit" class="btn btn-primary btn-full">
+                <span class="btn-icon">🚀</span>
+                Create Account
+            </button>
+        </form>
+
+        <div class="auth-footer">
+            <p>Already have an account? <a href="{{ url_for('login') }}">Login here</a></p>
+        </div>
+
+        <div class="auth-features">
+            <h3>What you'll get:</h3>
+            <ul>
+                <li>🐦 Your very own starter bird (Sparrow)</li>
+                <li>📊 Track your daily habits</li>
+                <li>⭐ Earn XP and level up</li>
+                <li>🌱 Collect seeds and unlock new birds</li>
+                <li>🔥 Build streaks and stay motivated</li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}

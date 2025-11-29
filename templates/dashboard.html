@@ -1,0 +1,299 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - BirdQuest{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/dashboard.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+    <!-- Stats Overview -->
+    <div class="stats-bar">
+        <div class="stat-item">
+            <span class="stat-icon">🔥</span>
+            <span class="stat-value" id="streak-count">{{ current_user.streak }}</span>
+            <span class="stat-label">Day Streak</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-icon">⭐</span>
+            <span class="stat-value" id="level-display">{{ current_user.level }}</span>
+            <span class="stat-label">Level</span>
+        </div>
+        <div class="stat-item">
+            <span class="stat-icon">🌱</span>
+            <span class="stat-value" id="seeds-count">{{ current_user.seeds }}</span>
+            <span class="stat-label">Seeds</span>
+        </div>
+        <div class="stat-item multiplier">
+            <span class="stat-icon">✨</span>
+            <span class="stat-value">{{ "%.1f"|format(multiplier) }}x</span>
+            <span class="stat-label">Multiplier</span>
+        </div>
+    </div>
+
+    <div class="dashboard-grid">
+        <!-- Bird Display Section -->
+        <section class="bird-section">
+            <div class="bird-display {{ bird.rarity }}{% if current_user.current_bird_shiny %} shiny{% endif %}">
+                <div class="bird-background">
+                    {% if current_user.current_bird_shiny %}
+                    <div class="sparkles">
+                        <span class="sparkle"></span>
+                        <span class="sparkle"></span>
+                        <span class="sparkle"></span>
+                        <span class="sparkle"></span>
+                        <span class="sparkle"></span>
+                        <span class="sparkle"></span>
+                    </div>
+                    <div class="shiny-ring"></div>
+                    {% endif %}
+                    <div class="bird-image">
+                        {% if bird.name == 'Sparrow' %}🐦
+                        {% elif bird.name == 'Robin' %}🐤
+                        {% elif bird.name == 'Finch' %}🐥
+                        {% elif bird.name == 'Blue Jay' %}💙🐦
+                        {% elif bird.name == 'Cardinal' %}❤️🐦
+                        {% elif bird.name == 'Woodpecker' %}🪶
+                        {% elif bird.name == 'Owl' %}🦉
+                        {% elif bird.name == 'Hawk' %}🦅
+                        {% elif bird.name == 'Falcon' %}🦅
+                        {% elif bird.name == 'Peacock' %}🦚
+                        {% elif bird.name == 'Flamingo' %}🦩
+                        {% elif bird.name == 'Toucan' %}🐦
+                        {% elif bird.name == 'Phoenix' %}🔥
+                        {% elif bird.name == 'Thunderbird' %}⚡
+                        {% elif bird.name == 'Golden Eagle' %}🦅
+                        {% else %}🐦
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="bird-info">
+                    <h2 class="bird-name">
+                        {% if current_user.current_bird_shiny %}✨ {% endif %}{{ bird.name }}
+                    </h2>
+                    <span class="bird-rarity {{ bird.rarity }}">{{ bird.rarity|title }}{% if current_user.current_bird_shiny %} Shiny{% endif %}</span>
+                    <p class="bird-description">{{ bird.description }}</p>
+                </div>
+            </div>
+
+            <!-- XP Progress -->
+            <div class="xp-section">
+                <div class="xp-header">
+                    <span class="xp-label">Experience Points</span>
+                    <span class="xp-value" id="xp-display">{{ current_user.xp }} / {{ xp_needed }} XP</span>
+                </div>
+                <div class="xp-bar-container">
+                    <div class="xp-bar" id="xp-bar" style="width: {{ (current_user.xp / xp_needed * 100)|int }}%"></div>
+                </div>
+                <p class="xp-hint">Complete habits to earn XP and level up!</p>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="quick-actions">
+                <a href="{{ url_for('shop') }}" class="action-btn shop-btn">
+                    <span class="action-icon">🏪</span>
+                    <span>Visit Shop</span>
+                </a>
+                <button class="action-btn stats-btn" onclick="showStats()">
+                    <span class="action-icon">📊</span>
+                    <span>View Stats</span>
+                </button>
+            </div>
+        </section>
+
+        <!-- Habits Section -->
+        <section class="habits-section">
+            <div class="habits-header">
+                <h2>📝 Today's Habits</h2>
+                <button class="btn btn-small btn-primary" onclick="openAddHabitModal()">
+                    <span>+ Add Habit</span>
+                </button>
+            </div>
+
+            <div class="habit-categories">
+                <button class="category-filter active" data-category="all">All</button>
+                <button class="category-filter" data-category="study">📚 Study</button>
+                <button class="category-filter" data-category="health">💪 Health</button>
+                <button class="category-filter" data-category="productivity">⚡ Productivity</button>
+                <button class="category-filter" data-category="social">👥 Social</button>
+                <button class="category-filter" data-category="custom">⭐ Custom</button>
+            </div>
+
+            <div class="habits-list" id="habits-list">
+                {% for habit in habits %}
+                <div class="habit-item {% if habit.id|string in completed_today|map(attribute='habit_id')|map('string')|list or (habit.is_custom and ('custom_' ~ habit.id|string|replace('custom_', '')) in completed_today|map(attribute='habit_id')|map('string')|list) %}completed{% endif %}"
+                     data-habit-id="{{ habit.id }}"
+                     data-category="{{ habit.category }}"
+                     data-custom="{{ habit.is_custom|default(false)|lower }}">
+                    <div class="habit-check">
+                        <button class="check-btn {% if habit.id|string in completed_today|map(attribute='habit_id')|map('string')|list %}checked{% endif %}"
+                                onclick="completeHabit('{{ habit.id }}', {{ habit.is_custom|default(false)|lower }})"
+                                {% set is_completed = false %}
+                                {% for comp in completed_today %}
+                                    {% if habit.is_custom|default(false) %}
+                                        {% if comp.is_custom and comp.habit_id == habit.id|string|replace('custom_', '')|int %}
+                                            {% set is_completed = true %}
+                                        {% endif %}
+                                    {% else %}
+                                        {% if not comp.is_custom and comp.habit_id == habit.id %}
+                                            {% set is_completed = true %}
+                                        {% endif %}
+                                    {% endif %}
+                                {% endfor %}
+                                {% if is_completed %}disabled{% endif %}>
+                            <span class="check-icon">✓</span>
+                        </button>
+                    </div>
+                    <div class="habit-content">
+                        <h3 class="habit-name">{{ habit.name }}</h3>
+                        <div class="habit-meta">
+                            <span class="habit-xp">+{{ habit.xp }} XP</span>
+                            <span class="habit-category">{{ habit.category|title }}</span>
+                        </div>
+                    </div>
+                    {% if habit.is_custom|default(false) %}
+                    <button class="habit-delete" onclick="deleteHabit('{{ habit.id }}')" title="Delete habit">
+                        🗑️
+                    </button>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="habits-summary">
+                <div class="summary-item">
+                    <span class="summary-label">Completed Today</span>
+                    <span class="summary-value" id="completed-count">{{ completed_today|length }}</span>
+                </div>
+                <div class="summary-item">
+                    <span class="summary-label">Total Habits</span>
+                    <span class="summary-value">{{ habits|length }}</span>
+                </div>
+            </div>
+        </section>
+    </div>
+</div>
+
+<!-- Add Habit Modal -->
+<div class="modal" id="add-habit-modal">
+    <div class="modal-backdrop" onclick="closeAddHabitModal()"></div>
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>Add Custom Habit</h2>
+            <button class="modal-close" onclick="closeAddHabitModal()">×</button>
+        </div>
+        <form id="add-habit-form" onsubmit="addHabit(event)">
+            <div class="form-group">
+                <label for="habit-name">Habit Name</label>
+                <input type="text" id="habit-name" name="name" placeholder="e.g., Practice guitar for 30 min" required maxlength="100">
+            </div>
+            <div class="form-group">
+                <label for="habit-xp">XP Reward</label>
+                <select id="habit-xp" name="xp">
+                    <option value="5">5 XP (Quick task)</option>
+                    <option value="10" selected>10 XP (Regular)</option>
+                    <option value="15">15 XP (Challenging)</option>
+                    <option value="20">20 XP (Difficult)</option>
+                    <option value="25">25 XP (Major achievement)</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="habit-category">Category</label>
+                <select id="habit-category" name="category">
+                    <option value="custom">⭐ Custom</option>
+                    <option value="study">📚 Study</option>
+                    <option value="health">💪 Health</option>
+                    <option value="productivity">⚡ Productivity</option>
+                    <option value="social">👥 Social</option>
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-secondary" onclick="closeAddHabitModal()">Cancel</button>
+                <button type="submit" class="btn btn-primary">Add Habit</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Stats Modal -->
+<div class="modal" id="stats-modal">
+    <div class="modal-backdrop" onclick="closeStatsModal()"></div>
+    <div class="modal-content stats-content">
+        <div class="modal-header">
+            <h2>📊 Your Stats</h2>
+            <button class="modal-close" onclick="closeStatsModal()">×</button>
+        </div>
+        <div class="stats-grid">
+            <div class="stat-card">
+                <div class="stat-card-icon">🔥</div>
+                <div class="stat-card-value" id="stats-streak">{{ current_user.streak }}</div>
+                <div class="stat-card-label">Current Streak</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-icon">⭐</div>
+                <div class="stat-card-value" id="stats-level">{{ current_user.level }}</div>
+                <div class="stat-card-label">Level</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-icon">🌱</div>
+                <div class="stat-card-value" id="stats-seeds">{{ current_user.seeds }}</div>
+                <div class="stat-card-label">Seeds</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-card-icon">🐦</div>
+                <div class="stat-card-value" id="stats-birds">-</div>
+                <div class="stat-card-label">Birds Owned</div>
+            </div>
+        </div>
+        <div class="weekly-activity">
+            <h3>Weekly Activity</h3>
+            <div class="activity-chart" id="activity-chart">
+                <!-- Populated by JavaScript -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Level Up Notification -->
+<div class="level-up-notification" id="level-up-notification">
+    <div class="level-up-content">
+        <div class="level-up-icon">🎉</div>
+        <h2>Level Up!</h2>
+        <p class="level-up-text">You reached <span id="new-level">2</span>!</p>
+        <p class="seeds-earned">+<span id="seeds-earned">10</span> 🌱 Seeds</p>
+        <button class="btn btn-primary" onclick="closeLevelUp()">Awesome!</button>
+    </div>
+</div>
+
+<!-- Toast Notifications -->
+<div class="toast-container" id="toast-container"></div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/dashboard.js') }}"></script>
+<script>
+    // Initialize completed habits tracking
+    const completedToday = {{ completed_today|tojson|safe }};
+
+    // Update habit items based on completion status
+    document.addEventListener('DOMContentLoaded', function() {
+        completedToday.forEach(comp => {
+            const habitId = comp.is_custom ? `custom_${comp.habit_id}` : comp.habit_id;
+            const habitItem = document.querySelector(`[data-habit-id="${habitId}"]`);
+            if (habitItem) {
+                habitItem.classList.add('completed');
+                const checkBtn = habitItem.querySelector('.check-btn');
+                if (checkBtn) {
+                    checkBtn.classList.add('checked');
+                    checkBtn.disabled = true;
+                }
+            }
+        });
+
+        // Update completed count
+        updateCompletedCount();
+    });
+</script>
+{% endblock %}
